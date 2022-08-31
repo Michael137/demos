@@ -1,6 +1,7 @@
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
 #include <fstream>
+#include <glm/glm.hpp>
 #include <iostream>
 #include <string>
 
@@ -89,6 +90,7 @@ static GLuint CreateShader( std::string const& text, GLenum shaderType )
 
 struct Shader
 {
+    [[clang::xray_always_intrument]]
     Shader( std::string const& fileName )
     {
         // Allocate space on the GPU for our program
@@ -120,6 +122,7 @@ struct Shader
 
     // Make GPU use shader functions tied to this
     // Shader object
+    [[clang::xray_always_intrument]]
     void bind() { glUseProgram( m_program ); }
 
     ~Shader()
@@ -134,6 +137,61 @@ struct Shader
     static constexpr uint64_t kNumShaders = 2;
     GLuint m_program;
     GLuint m_shaders[kNumShaders];
+};
+
+struct Vertex
+{
+    glm::vec3 m_pos;
+
+    Vertex( glm::vec3 pos ) : m_pos( std::move( pos ) ) {}
+};
+
+struct Mesh
+{
+    Mesh( Vertex* vertices, uint64_t numVertices ) : m_drawCount( numVertices )
+    {
+        glGenVertexArrays( 1, &m_vertexArrayObject );
+        glBindVertexArray( m_vertexArrayObject );
+
+        glGenBuffers((GLuint)VertexBuffer::kNumBuffers, m_vertexArrayBuffers);
+        glBindBuffer(GL_ARRAY_BUFFER, m_vertexArrayBuffers[(GLuint)VertexBuffer::kPositionVB]);
+
+        // Take data from RAM and move it to GPU memory
+        glBufferData(GL_ARRAY_BUFFER, numVertices * sizeof(vertices[0]), vertices,
+                     /* Draw hint */ GL_STATIC_DRAW);
+
+        // Tell GL how to interpret the data once it's trying to draw
+        glEnableVertexAttribArray(0);
+        // Corresponds to contents of a (flattened) "class Vertex"
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+        glBindVertexArray(0);
+    }
+
+    ~Mesh() {
+        glDeleteVertexArrays(1, &m_vertexArrayObject);
+    }
+
+    void draw() {
+        glBindVertexArray(m_vertexArrayObject);
+
+        glDrawArrays(GL_TRIANGLES, 0, m_drawCount);
+
+        glBindVertexArray(0);
+    }
+
+    enum class VertexBuffer : uint32_t
+    {
+        kPositionVB = 0,
+
+        // Keep last
+        kNumBuffers
+    };
+
+    // The way OpenGL represents data on the GPU
+    GLuint m_vertexArrayObject;
+    GLuint m_vertexArrayBuffers[static_cast<uint32_t>(VertexBuffer::kNumBuffers)];
+    uint64_t m_drawCount = 0;
 };
 
 int main()
@@ -170,6 +228,13 @@ int main()
         return -1;
     }
 
+    // Example triangles
+    Vertex vertices[] = { Vertex(glm::vec3(-0.5, -0.5, 0)),
+                          Vertex(glm::vec3(   0,  0.5, 0)),
+                          Vertex(glm::vec3( 0.5, -0.5, 0)) };
+
+    Mesh mesh(vertices, sizeof(vertices) / sizeof(vertices[0]));
+
     // Variables defined below require GLEW to be initialized
     // before creation
     Shader shader( "./res/basicShader" );
@@ -177,7 +242,9 @@ int main()
     bool closed = false;
     while( !closed ) {
         clearWindow();
+
         shader.bind();
+        mesh.draw();
 
         closed = updateWindow( win );
     }

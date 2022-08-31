@@ -1,0 +1,4 @@
+# always-instrument.txt
+# always instrument functions that match the following filters:
+
+fun:main
