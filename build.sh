@@ -1,7 +1,9 @@
 #!/bin/bash
 
-#clang++ main.cpp -std=c++2a -O0 -g -lSDL2 -lGL -lGLEW -fsanitize=address,undefined -fxray-instrument && ./a.out
+INCLUDES="-I/usr/include/SDL2 -I/usr/local/include -I./"
+COMPILE_FLAGS="-std=c++2a -O0 -g"
+LD_FLAGS="-lSDL2 -lGL -lGLEW"
+#TOOLS="-fsanitize=address,undefined -fxray-instrument"
 
-clang++ main.cpp -std=c++2a -O0 -g -lSDL2 -lGL -lGLEW -fxray-instrument -fxray-instruction-threshold=1 -fxray-always-instrument=always-instrument.txt
-
-XRAY_OPTIONS="patch_premain=true" ./a.out
+clang++ ${INCLUDES} ${COMPILE_FLAGS} ${TOOLS} -c Texture.cpp -o Texture.o
+clang++ ${INCLUDES} ${COMPILE_FLAGS} ${LD_FLAGS} ${TOOLS} main.cpp Texture.o && ./a.out
